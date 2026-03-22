@@ -367,40 +367,48 @@ function TopPieChart({ bizMonth, selectedMonth }) {
   return <canvas ref={canvasRef} />;
 }
 
-// אוכל vs משחקים donut
-function CategoryDonut({ totals }) {
-  const canvasRef = useRef(null);
-  const chartRef  = useRef(null);
+// אוכל vs משחקים donut — pure SVG, no canvas, updates instantly with React state
+function CategoryDonut({ totals, monthLabel }) {
+  const food  = Math.max(0, totals["אוכל"]    || 0);
+  const games = Math.max(0, totals["משחקים"]  || 0);
+  const total = food + games;
 
-  useEffect(() => {
-    if (chartRef.current) chartRef.current.destroy();
-    const ctx = canvasRef.current.getContext("2d");
-    const food  = Math.max(0, totals["אוכל"]    || 0);
-    const games = Math.max(0, totals["משחקים"]  || 0);
-    chartRef.current = new Chart(ctx, {
-      type: "doughnut",
-      data: {
-        labels: ["אוכל 🍕", "משחקים 🎮"],
-        datasets: [{
-          data: [parseFloat(food.toFixed(2)), parseFloat(games.toFixed(2))],
-          backgroundColor: ["#f59e0bdd", "#6366f1dd"],
-          borderColor: "#0f172a",
-          borderWidth: 3,
-        }]
-      },
-      options: {
-        cutout: "68%",
-        responsive: true,
-        plugins: {
-          legend: { position:"bottom", labels:{ color:"#cbd5e1", font:{ size:13 }, padding:16 } },
-          tooltip: { callbacks: { label: c => c.label + ": ₪" + c.raw.toFixed(2) } }
-        }
-      }
-    });
-    return () => chartRef.current?.destroy();
-  }, [totals]);
+  if (total === 0) return (
+    <div className="flex items-center justify-center h-36 text-slate-500 text-sm">אין נתונים</div>
+  );
 
-  return <canvas ref={canvasRef} />;
+  const r = 52, cx = 70, cy = 70;
+  const circ    = 2 * Math.PI * r;
+  const foodArc = (food / total) * circ;
+
+  return (
+    <svg viewBox="0 0 140 140" className="w-full" style={{maxWidth:220, display:"block", margin:"0 auto"}}>
+      {/* track */}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1e293b" strokeWidth="22"/>
+      {/* games segment */}
+      <circle cx={cx} cy={cy} r={r} fill="none"
+        stroke="#6366f1cc" strokeWidth="20"
+        strokeDasharray={`${circ - foodArc} ${circ}`}
+        strokeDashoffset={-foodArc}
+        transform={`rotate(-90 ${cx} ${cy})`}
+        style={{transition:"stroke-dasharray 0.4s ease"}}/>
+      {/* food segment */}
+      <circle cx={cx} cy={cy} r={r} fill="none"
+        stroke="#f59e0bcc" strokeWidth="20"
+        strokeDasharray={`${foodArc} ${circ}`}
+        strokeDashoffset={0}
+        transform={`rotate(-90 ${cx} ${cy})`}
+        style={{transition:"stroke-dasharray 0.4s ease"}}/>
+      {/* centre labels */}
+      <text x={cx} y={cy - 7} textAnchor="middle" fill="#f1f5f9" fontSize="15" fontWeight="bold">₪{total.toFixed(0)}</text>
+      <text x={cx} y={cy + 11} textAnchor="middle" fill="#94a3b8" fontSize="10">{monthLabel}</text>
+      {/* legend dots */}
+      <circle cx={22} cy={128} r={5} fill="#f59e0b"/>
+      <text x={30} y={132} fill="#cbd5e1" fontSize="9">אוכל</text>
+      <circle cx={72} cy={128} r={5} fill="#6366f1"/>
+      <text x={80} y={132} fill="#cbd5e1" fontSize="9">משחקים</text>
+    </svg>
+  );
 }
 
 // Stacked bar: אוכל vs משחקים per month — highlights selectedMonth column
@@ -492,7 +500,7 @@ function CategorySection({ catData, selectedMonth }) {
         {/* Donut — reflects selected month */}
         <div className="flex flex-col items-center justify-center gap-3">
           <div style={{maxWidth:240, width:"100%"}}>
-            <CategoryDonut key={selectedMonth} totals={monthTotals} />
+            <CategoryDonut totals={monthTotals} monthLabel={MONTH_LABELS[selectedMonth]} />
           </div>
           <div className="flex flex-col items-center gap-1 text-sm">
             <span className="font-bold" style={{color:"#f59e0b"}}>
