@@ -492,7 +492,7 @@ function CategorySection({ catData, selectedMonth }) {
         {/* Donut — reflects selected month */}
         <div className="flex flex-col items-center justify-center gap-3">
           <div style={{maxWidth:240, width:"100%"}}>
-            <CategoryDonut totals={monthTotals} />
+            <CategoryDonut key={selectedMonth} totals={monthTotals} />
           </div>
           <div className="flex flex-col items-center gap-1 text-sm">
             <span className="font-bold" style={{color:"#f59e0b"}}>
@@ -507,7 +507,7 @@ function CategorySection({ catData, selectedMonth }) {
         {/* Stacked bar — always shows all months for context, selected month highlighted */}
         <div className="lg:col-span-2">
           <p className="text-xs text-slate-400 mb-2">פילוח חודשי לפי קטגוריה — העמודה המודגשת = {MONTH_LABELS[selectedMonth]}</p>
-          <CategoryStackedBar byMonth={byMonth} selectedMonth={selectedMonth} />
+          <CategoryStackedBar key={selectedMonth} byMonth={byMonth} selectedMonth={selectedMonth} />
         </div>
       </div>
 
