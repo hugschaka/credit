@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>דשבורד הוצאות כרטיס אשראי – נווה חיובי</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f172a; }
+    .glass { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    th { position: sticky; top: 0; z-index: 10; }
+    canvas { max-height: 320px !important; }
+    .cat-btn { transition: all 0.15s ease; }
+    .cat-btn.active-food  { background: #f59e0b; color: #0f172a; border-color: #f59e0b; }
+    .cat-btn.active-games { background: #6366f1; color: #fff;    border-color: #6366f1; }
+    .cat-btn.active-all   { background: #22d3ee; color: #0f172a; border-color: #22d3ee; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ─── CATEGORY LOGIC ──────────────────────────────────────────────────────────
+// Any Hebrew character (Unicode block U+0590–U+05FF) → "אוכל"
+// Otherwise (pure English / Latin) → "משחקים"
+const hasHebrew = name => /[\u0590-\u05FF]/.test(name);
+const getCategory = name => hasHebrew(name) ? "אוכל" : "משחקים";
+
+// ─── RAW TRANSACTIONS ────────────────────────────────────────────────────────
+const RAW = [
+  // ── SEPTEMBER 2025 ──────────────────────────────────────────────────────
+  { month:"2025-09", business:"ZeusX",               amount: 18.35 },
+  { month:"2025-09", business:"ZeusX",               amount: 45.09 },
+  { month:"2025-09", business:"ZeusX",               amount: 45.30 },
+  { month:"2025-09", business:"ZeusX",               amount: 46.32 },
+  { month:"2025-09", business:"ZeusX",               amount: 22.95 },
+  { month:"2025-09", business:"ZeusX",               amount: 54.48 },
+  { month:"2025-09", business:"ZeusX",               amount:-37.11 },
+  { month:"2025-09", business:"ZeusX",               amount: 78.54 },
+  { month:"2025-09", business:"ZeusX",               amount: 48.48 },
+  { month:"2025-09", business:"ZeusX",               amount: 50.31 },
+  { month:"2025-09", business:"ZeusX",               amount: 94.29 },
+  { month:"2025-09", business:"ZeusX",               amount: 24.41 },
+  { month:"2025-09", business:"ZeusX",               amount: 20.61 },
+  { month:"2025-09", business:"ZeusX",               amount: 26.14 },
+  { month:"2025-09", business:"PlayerAuctions",       amount:128.01 },
+  { month:"2025-09", business:"PlayerAuctions",       amount: 91.72 },
+  { month:"2025-09", business:"PlayerAuctions",       amount: 55.43 },
+  { month:"2025-09", business:"אושי אושי",            amount:158.00 },
+  { month:"2025-09", business:"אושי אושי",            amount:112.00 },
+  { month:"2025-09", business:"Roblox",               amount:174.34 },
+  { month:"2025-09", business:"Roblox",               amount: 17.08 },
+  { month:"2025-09", business:"Roblox",               amount: 68.83 },
+  { month:"2025-09", business:"Roblox",               amount:  4.00 },
+  { month:"2025-09", business:"Roblox",               amount:  4.00 },
+  { month:"2025-09", business:"Roblox",               amount:  4.00 },
+  { month:"2025-09", business:"Roblox",               amount: 80.00 },
+  { month:"2025-09", business:"Roblox",               amount: 34.40 },
+  { month:"2025-09", business:"Activision Blizzard",  amount:199.00 },
+  { month:"2025-09", business:"Activision Blizzard",  amount:160.00 },
+  { month:"2025-09", business:"Activision Blizzard",  amount: 53.00 },
+  { month:"2025-09", business:"Activision Blizzard",  amount:255.20 },
+  { month:"2025-09", business:"Activision Blizzard",  amount:161.00 },
+  { month:"2025-09", business:"Activision Blizzard",  amount:160.00 },
+  { month:"2025-09", business:"פלאפל עמר",            amount: 24.00 },
+  { month:"2025-09", business:"פלאפל עמר",            amount: 24.00 },
+  { month:"2025-09", business:"Eldorado",             amount:104.61 },
+  { month:"2025-09", business:"Eldorado",             amount:126.04 },
+  { month:"2025-09", business:"פיצה בגין",            amount: 84.00 },
+  { month:"2025-09", business:"Oculus / Meta",        amount: 17.08 },
+  { month:"2025-09", business:"Steal A Brain",        amount:150.25 },
+  { month:"2025-09", business:"Google Caller ID",     amount: 11.90 },
+  { month:"2025-09", business:"Eneba",                amount:  1.91 },
+  { month:"2025-09", business:"Eneba",                amount: 29.60 },
+  { month:"2025-09", business:"Eneba",                amount:-171.27},
+  { month:"2025-09", business:"Eneba",                amount:172.06 },
+  { month:"2025-09", business:"Steam",                amount: 14.50 },
+  { month:"2025-09", business:"Steam",                amount: 69.48 },
+  { month:"2025-09", business:"Microsoft Store",      amount: 53.99 },
+
+  // ── OCTOBER 2025 ────────────────────────────────────────────────────────
+  { month:"2025-10", business:"ZeusX",               amount:142.54 },
+  { month:"2025-10", business:"ZeusX",               amount: 43.58 },
+  { month:"2025-10", business:"ZeusX",               amount:246.50 },
+  { month:"2025-10", business:"ZeusX",               amount:  7.28 },
+  { month:"2025-10", business:"ZeusX",               amount:124.96 },
+  { month:"2025-10", business:"ZeusX",               amount: 19.22 },
+  { month:"2025-10", business:"ZeusX",               amount:  5.20 },
+  { month:"2025-10", business:"ZeusX",               amount:  8.72 },
+  { month:"2025-10", business:"ZeusX",               amount: -6.83 },
+  { month:"2025-10", business:"ZeusX",               amount: 26.04 },
+  { month:"2025-10", business:"Roblox",              amount:167.34 },
+  { month:"2025-10", business:"Roblox",              amount:167.34 },
+  { month:"2025-10", business:"Roblox",              amount:167.34 },
+  { month:"2025-10", business:"Roblox",              amount: 33.44 },
+  { month:"2025-10", business:"Roblox",              amount:  2.00 },
+  { month:"2025-10", business:"Eneba",               amount:  6.40 },
+  { month:"2025-10", business:"Eneba",               amount: 53.12 },
+  { month:"2025-10", business:"Eneba",               amount: 20.23 },
+  { month:"2025-10", business:"Eneba",               amount:  2.39 },
+  { month:"2025-10", business:"Eneba",               amount:  8.28 },
+  { month:"2025-10", business:"Eneba",               amount: 29.21 },
+  { month:"2025-10", business:"Eneba",               amount: 67.79 },
+  { month:"2025-10", business:"Eneba",               amount:113.08 },
+  { month:"2025-10", business:"Eneba",               amount:  7.60 },
+  { month:"2025-10", business:"Eneba",               amount: 91.82 },
+  { month:"2025-10", business:"Oculus / Meta",       amount: 33.76 },
+  { month:"2025-10", business:"Oculus / Meta",       amount: 10.10 },
+  { month:"2025-10", business:"Oculus / Meta",       amount: 16.86 },
+  { month:"2025-10", business:"Oculus / Meta",       amount: 33.76 },
+  { month:"2025-10", business:"Oculus / Meta",       amount: 16.86 },
+  { month:"2025-10", business:"Oculus / Meta",       amount: 67.55 },
+  { month:"2025-10", business:"מאפיית תחנות קמח",   amount: 22.54 },
+  { month:"2025-10", business:"Microsoft Store",     amount:  3.80 },
+  { month:"2025-10", business:"Microsoft Store",     amount:420.00 },
+  { month:"2025-10", business:"Microsoft Store",     amount: 53.99 },
+  { month:"2025-10", business:"Google One",          amount: 12.00 },
+  { month:"2025-10", business:"Google One",          amount: 12.00 },
+  { month:"2025-10", business:"Activision Blizzard", amount:209.00 },
+  { month:"2025-10", business:"Celebian",            amount: 21.56 },
+  { month:"2025-10", business:"Steam",               amount: 20.00 },
+  { month:"2025-10", business:"Steam",               amount: 40.00 },
+  { month:"2025-10", business:"Steam",               amount:279.22 },
+  { month:"2025-10", business:"Eldorado",            amount: 22.40 },
+  { month:"2025-10", business:"FunPay",              amount:171.10 },
+  { month:"2025-10", business:"CSFloat",             amount:155.81 },
+  { month:"2025-10", business:"Google Caller ID",    amount: 11.90 },
+
+  // ── NOVEMBER 2025 ───────────────────────────────────────────────────────
+  { month:"2025-11", business:"ZeusX",       amount:  9.35 },
+  { month:"2025-11", business:"Roblox",      amount: 67.22 },
+  { month:"2025-11", business:"Roblox",      amount: 33.60 },
+  { month:"2025-11", business:"HoYoverse",   amount: 99.77 },
+  { month:"2025-11", business:"HoYoverse",   amount: 50.41 },
+  { month:"2025-11", business:"HoYoverse",   amount: 49.87 },
+  { month:"2025-11", business:"HoYoverse",   amount:168.11 },
+  { month:"2025-11", business:"HoYoverse",   amount: 16.60 },
+  { month:"2025-11", business:"AliExpress",  amount:228.40 },
+  { month:"2025-11", business:"Eneba",       amount: 34.25 },
+  { month:"2025-11", business:"Epic Games",  amount: 48.00 },
+
+  // ── DECEMBER 2025 ───────────────────────────────────────────────────────
+  { month:"2025-12", business:"Eneba",          amount: 48.75 },
+  { month:"2025-12", business:"Eneba",          amount: 28.76 },
+  { month:"2025-12", business:"Eneba",          amount: 40.94 },
+  { month:"2025-12", business:"Eneba",          amount: 52.97 },
+  { month:"2025-12", business:"Eneba",          amount: 29.91 },
+  { month:"2025-12", business:"Eneba",          amount:  7.35 },
+  { month:"2025-12", business:"Eneba",          amount: 28.64 },
+  { month:"2025-12", business:"Eneba",          amount: 49.14 },
+  { month:"2025-12", business:"Eneba",          amount:108.51 },
+  { month:"2025-12", business:"Eneba",          amount: 69.69 },
+  { month:"2025-12", business:"Eneba",          amount:  1.93 },
+  { month:"2025-12", business:"Eneba",          amount:122.86 },
+  { month:"2025-12", business:"Eneba",          amount: 45.05 },
+  { month:"2025-12", business:"Eneba",          amount: 38.89 },
+  { month:"2025-12", business:"Eneba",          amount:  1.93 },
+  { month:"2025-12", business:"Eneba",          amount: 52.97 },
+  { month:"2025-12", business:"G2A",            amount:  3.70 },
+  { month:"2025-12", business:"Roblox",         amount:  2.00 },
+  { month:"2025-12", business:"TikTok",         amount:  0.30 },
+  { month:"2025-12", business:"Google One",     amount: 12.00 },
+  { month:"2025-12", business:"Google One",     amount: 12.00 },
+  { month:"2025-12", business:"Epic Games",     amount:  8.56 },
+  { month:"2025-12", business:"Epic Games",     amount: 85.81 },
+  { month:"2025-12", business:"Microsoft Store",amount:104.00 },
+  { month:"2025-12", business:"Twitch",         amount: 65.63 },
+  { month:"2025-12", business:"Twitch",         amount: 20.22 },
+  { month:"2025-12", business:"Nintendo",       amount: 66.36 },
+  { month:"2025-12", business:"Nintendo",       amount:110.64 },
+
+  // ── JANUARY 2026 ────────────────────────────────────────────────────────
+  { month:"2026-01", business:"Roblox",         amount:159.36 },
+  { month:"2026-01", business:"Roblox",         amount: 63.72 },
+  { month:"2026-01", business:"Roblox",         amount: 63.72 },
+  { month:"2026-01", business:"Roblox",         amount: 20.00 },
+  { month:"2026-01", business:"ZeusX",          amount: 19.36 },
+  { month:"2026-01", business:"ZeusX",          amount:108.08 },
+  { month:"2026-01", business:"ZeusX",          amount:-78.23 },
+  { month:"2026-01", business:"ZeusX",          amount: 74.69 },
+  { month:"2026-01", business:"ZeusX",          amount: 79.18 },
+  { month:"2026-01", business:"ZeusX",          amount: 56.62 },
+  { month:"2026-01", business:"Nintendo",       amount: 18.36 },
+  { month:"2026-01", business:"Steam",          amount: 50.29 },
+  { month:"2026-01", business:"Eneba",          amount: 72.46 },
+  { month:"2026-01", business:"G2A",            amount:455.95 },
+  { month:"2026-01", business:"Twitch",         amount:159.22 },
+  { month:"2026-01", business:"Microsoft Store",amount:  3.80 },
+
+  // ── FEBRUARY 2026 ───────────────────────────────────────────────────────
+  { month:"2026-02", business:"ZeusX",          amount: 55.51 },
+  { month:"2026-02", business:"ZeusX",          amount: 28.28 },
+  { month:"2026-02", business:"ZeusX",          amount:101.75 },
+  { month:"2026-02", business:"ZeusX",          amount:424.76 },
+  { month:"2026-02", business:"Steam",          amount:  6.57 },
+  { month:"2026-02", business:"Discord Nitro",  amount:  9.62 },
+  { month:"2026-02", business:"Discord Nitro",  amount: 31.73 },
+  { month:"2026-02", business:"AliExpress",     amount: 18.85 },
+  { month:"2026-02", business:"Roblox",         amount: 31.57 },
+  { month:"2026-02", business:"Roblox",         amount: 15.77 },
+  { month:"2026-02", business:"Roblox",         amount: 15.77 },
+  { month:"2026-02", business:"Roblox",         amount: 15.77 },
+  { month:"2026-02", business:"Roblox",         amount:  4.00 },
+  { month:"2026-02", business:"Roblox",         amount:  4.00 },
+  { month:"2026-02", business:"Nintendo",       amount: 73.19 },
+  { month:"2026-02", business:"Nintendo",       amount:217.04 },
+  { month:"2026-02", business:"Nintendo",       amount: 43.41 },
+  { month:"2026-02", business:"Nintendo",       amount: 73.19 },
+  { month:"2026-02", business:"Tebex",          amount:223.48 },
+  { month:"2026-02", business:"Pokémon GO",     amount: 55.90 },
+
+  // ── MARCH 2026 ──────────────────────────────────────────────────────────
+  { month:"2026-03", business:"Roblox",     amount: 16.00 },
+  { month:"2026-03", business:"Google One", amount: 12.00 },
+];
+
+// Attach category to every transaction once
+const TRANSACTIONS = RAW.map(t => ({ ...t, category: getCategory(t.business) }));
+
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const MONTHS = ["2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03"];
+const MONTH_LABELS = {
+  "2025-09":"ספט׳ 25","2025-10":"אוק׳ 25","2025-11":"נוב׳ 25",
+  "2025-12":"דצמ׳ 25","2026-01":"ינו׳ 26","2026-02":"פבר׳ 26","2026-03":"מרץ 26"
+};
+const CATEGORIES = ["הכל", "אוכל", "משחקים"];
+const CAT_COLORS  = { "אוכל": "#f59e0b", "משחקים": "#6366f1" };
+const CAT_BG      = { "אוכל": "rgba(245,158,11,0.15)", "משחקים": "rgba(99,102,241,0.15)" };
+
+const PALETTE = [
+  "#6366f1","#22d3ee","#f59e0b","#34d399","#f87171",
+  "#a78bfa","#fb923c","#2dd4bf","#e879f9","#94a3b8",
+  "#38bdf8","#fbbf24","#4ade80","#f472b6","#c084fc",
+  "#818cf8","#a3e635","#fb7185","#fdba74","#67e8f9",
+  "#86efac","#d8b4fe","#fca5a5","#fcd34d","#6ee7b7",
+];
+
+function fmt(n) { return "₪" + Math.abs(n).toFixed(2); }
+function fmtSigned(n) { return (n < 0 ? "-₪" : "₪") + Math.abs(n).toFixed(2); }
+
+// ─── DATA AGGREGATION ────────────────────────────────────────────────────────
+function buildData(filterCat = "הכל") {
+  const source = filterCat === "הכל" ? TRANSACTIONS : TRANSACTIONS.filter(t => t.category === filterCat);
+  const byBizMonth = {};
+  const monthTotals = {};
+  const bizTotals   = {};
+
+  MONTHS.forEach(m => { monthTotals[m] = 0; });
+
+  source.forEach(({ month, business, amount }) => {
+    if (!byBizMonth[business]) byBizMonth[business] = {};
+    byBizMonth[business][month] = (byBizMonth[business][month] || 0) + amount;
+    monthTotals[month] = (monthTotals[month] || 0) + amount;
+    bizTotals[business] = (bizTotals[business] || 0) + amount;
+  });
+
+  return { byBizMonth, monthTotals, bizTotals };
+}
+
+// Category totals (always over full dataset)
+function buildCategoryData() {
+  const totals   = { "אוכל": 0, "משחקים": 0 };
+  const byMonth  = { "אוכל": {}, "משחקים": {} };
+
+  TRANSACTIONS.forEach(({ month, category, amount }) => {
+    totals[category] = (totals[category] || 0) + amount;
+    byMonth[category][month] = (byMonth[category][month] || 0) + amount;
+  });
+
+  // Collect per-category business leaders (all-time)
+  const bizByCat = { "אוכל": {}, "משחקים": {} };
+  // Collect per-category, per-month business leaders
+  const bizByCatMonth = { "אוכל": {}, "משחקים": {} };
+  TRANSACTIONS.forEach(({ month, business, category, amount }) => {
+    bizByCat[category][business] = (bizByCat[category][business] || 0) + amount;
+    if (!bizByCatMonth[category][month]) bizByCatMonth[category][month] = {};
+    bizByCatMonth[category][month][business] = (bizByCatMonth[category][month][business] || 0) + amount;
+  });
+
+  return { totals, byMonth, bizByCat, bizByCatMonth };
+}
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+function MonthlyBarChart({ monthTotals, color }) {
+  const canvasRef = useRef(null);
+  const chartRef  = useRef(null);
+  const col = color || "#22d3ee";
+
+  useEffect(() => {
+    if (chartRef.current) chartRef.current.destroy();
+    const ctx = canvasRef.current.getContext("2d");
+    chartRef.current = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: MONTHS.map(m => MONTH_LABELS[m]),
+        datasets: [{
+          label: "הוצאות (₪)",
+          data: MONTHS.map(m => parseFloat((monthTotals[m] || 0).toFixed(2))),
+          backgroundColor: col + "bb",
+          borderColor: col,
+          borderWidth: 2,
+          borderRadius: 8,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => "₪" + c.raw.toFixed(2) } }
+        },
+        scales: {
+          y: { beginAtZero:true, ticks:{ color:"#94a3b8", callback: v => "₪"+v }, grid:{ color:"rgba(255,255,255,0.05)" } },
+          x: { ticks:{ color:"#94a3b8" }, grid:{ display:false } }
+        }
+      }
+    });
+    return () => chartRef.current?.destroy();
+  }, [monthTotals, color]);
+
+  return <canvas ref={canvasRef} />;
+}
+
+function TopPieChart({ bizMonth, selectedMonth }) {
+  const canvasRef = useRef(null);
+  const chartRef  = useRef(null);
+
+  const data = useMemo(() => Object.entries(bizMonth)
+    .map(([biz, months]) => ({ biz, val: months[selectedMonth] || 0 }))
+    .filter(x => x.val > 0)
+    .sort((a, b) => b.val - a.val)
+    .slice(0, 10), [bizMonth, selectedMonth]);
+
+  useEffect(() => {
+    if (chartRef.current) chartRef.current.destroy();
+    if (!data.length) return;
+    const ctx = canvasRef.current.getContext("2d");
+    chartRef.current = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: data.map(d => d.biz),
+        datasets: [{
+          data: data.map(d => parseFloat(d.val.toFixed(2))),
+          backgroundColor: PALETTE.slice(0, data.length).map(c => c + "dd"),
+          borderColor: "#0f172a",
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position:"right", labels:{ color:"#cbd5e1", font:{ size:11 }, boxWidth:14, padding:10 } },
+          tooltip: { callbacks: { label: c => c.label + ": ₪" + c.raw.toFixed(2) } }
+        }
+      }
+    });
+    return () => chartRef.current?.destroy();
+  }, [data]);
+
+  return <canvas ref={canvasRef} />;
+}
+
+// אוכל vs משחקים donut
+function CategoryDonut({ totals }) {
+  const canvasRef = useRef(null);
+  const chartRef  = useRef(null);
+
+  useEffect(() => {
+    if (chartRef.current) chartRef.current.destroy();
+    const ctx = canvasRef.current.getContext("2d");
+    const food  = Math.max(0, totals["אוכל"]    || 0);
+    const games = Math.max(0, totals["משחקים"]  || 0);
+    chartRef.current = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["אוכל 🍕", "משחקים 🎮"],
+        datasets: [{
+          data: [parseFloat(food.toFixed(2)), parseFloat(games.toFixed(2))],
+          backgroundColor: ["#f59e0bdd", "#6366f1dd"],
+          borderColor: "#0f172a",
+          borderWidth: 3,
+        }]
+      },
+      options: {
+        cutout: "68%",
+        responsive: true,
+        plugins: {
+          legend: { position:"bottom", labels:{ color:"#cbd5e1", font:{ size:13 }, padding:16 } },
+          tooltip: { callbacks: { label: c => c.label + ": ₪" + c.raw.toFixed(2) } }
+        }
+      }
+    });
+    return () => chartRef.current?.destroy();
+  }, [totals]);
+
+  return <canvas ref={canvasRef} />;
+}
+
+// Stacked bar: אוכל vs משחקים per month — highlights selectedMonth column
+function CategoryStackedBar({ byMonth, selectedMonth }) {
+  const canvasRef = useRef(null);
+  const chartRef  = useRef(null);
+
+  useEffect(() => {
+    if (chartRef.current) chartRef.current.destroy();
+    const ctx = canvasRef.current.getContext("2d");
+
+    // Selected month gets full opacity; others are dimmed
+    const foodColors  = MONTHS.map(m => m === selectedMonth ? "#f59e0b" : "#f59e0b44");
+    const gamesColors = MONTHS.map(m => m === selectedMonth ? "#6366f1" : "#6366f144");
+    const foodBg      = MONTHS.map(m => m === selectedMonth ? "#f59e0bcc" : "#f59e0b33");
+    const gamesBg     = MONTHS.map(m => m === selectedMonth ? "#6366f1cc" : "#6366f133");
+
+    chartRef.current = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: MONTHS.map(m => MONTH_LABELS[m]),
+        datasets: [
+          {
+            label: "אוכל 🍕",
+            data: MONTHS.map(m => parseFloat(Math.max(0, byMonth["אוכל"][m] || 0).toFixed(2))),
+            backgroundColor: foodBg,
+            borderColor: foodColors,
+            borderWidth: 2,
+            borderRadius: 4,
+          },
+          {
+            label: "משחקים 🎮",
+            data: MONTHS.map(m => parseFloat(Math.max(0, byMonth["משחקים"][m] || 0).toFixed(2))),
+            backgroundColor: gamesBg,
+            borderColor: gamesColors,
+            borderWidth: 2,
+            borderRadius: 4,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { stacked:true, ticks:{ color: ctx2 => MONTHS[ctx2.index] === selectedMonth ? "#fff" : "#94a3b8" }, grid:{ display:false } },
+          y: { stacked:true, beginAtZero:true, ticks:{ color:"#94a3b8", callback: v => "₪"+v }, grid:{ color:"rgba(255,255,255,0.05)" } }
+        },
+        plugins: {
+          legend: { labels:{ color:"#cbd5e1", font:{ size:12 }, padding:14 } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ": ₪" + c.raw.toFixed(2) } }
+        }
+      }
+    });
+    return () => chartRef.current?.destroy();
+  }, [byMonth, selectedMonth]);
+
+  return <canvas ref={canvasRef} />;
+}
+
+// ─── CATEGORY SECTION ────────────────────────────────────────────────────────
+function CategorySection({ catData, selectedMonth }) {
+  const { byMonth, bizByCatMonth } = catData;
+
+  // Per-month totals for the selected month
+  const monthTotals = {
+    "אוכל":   byMonth["אוכל"][selectedMonth]   || 0,
+    "משחקים": byMonth["משחקים"][selectedMonth] || 0,
+  };
+  const grand    = Math.max(0, monthTotals["אוכל"]) + Math.max(0, monthTotals["משחקים"]);
+  const foodPct  = grand > 0 ? (Math.max(0, monthTotals["אוכל"])   / grand * 100).toFixed(1) : 0;
+  const gamesPct = grand > 0 ? (Math.max(0, monthTotals["משחקים"]) / grand * 100).toFixed(1) : 0;
+
+  // Top businesses for selected month per category
+  const topN = (cat, n=5) => Object.entries(bizByCatMonth[cat]?.[selectedMonth] || {})
+    .filter(([,v]) => v > 0)
+    .sort(([,a],[,b]) => b - a)
+    .slice(0, n);
+
+  return (
+    <div className="glass rounded-xl p-5 space-y-5">
+      <div className="flex items-center gap-3">
+        <h2 className="text-slate-300 font-semibold text-lg">פילוח קטגוריות: אוכל vs משחקים</h2>
+        <span className="text-xs px-2.5 py-1 rounded-full bg-slate-700 text-slate-300 font-medium">
+          {MONTH_LABELS[selectedMonth]}
+        </span>
+        <span className="text-xs text-slate-500">← לחץ על חודש למעלה לניווט</span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Donut — reflects selected month */}
+        <div className="flex flex-col items-center justify-center gap-3">
+          <div style={{maxWidth:240, width:"100%"}}>
+            <CategoryDonut totals={monthTotals} />
+          </div>
+          <div className="flex flex-col items-center gap-1 text-sm">
+            <span className="font-bold" style={{color:"#f59e0b"}}>
+              🍕 אוכל: {fmt(monthTotals["אוכל"])} <span className="text-slate-400 font-normal">({foodPct}%)</span>
+            </span>
+            <span className="font-bold" style={{color:"#6366f1"}}>
+              🎮 משחקים: {fmt(monthTotals["משחקים"])} <span className="text-slate-400 font-normal">({gamesPct}%)</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Stacked bar — always shows all months for context, selected month highlighted */}
+        <div className="lg:col-span-2">
+          <p className="text-xs text-slate-400 mb-2">פילוח חודשי לפי קטגוריה — העמודה המודגשת = {MONTH_LABELS[selectedMonth]}</p>
+          <CategoryStackedBar byMonth={byMonth} selectedMonth={selectedMonth} />
+        </div>
+      </div>
+
+      {/* Top businesses for selected month per category */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {["אוכל","משחקים"].map(cat => {
+          const entries = topN(cat);
+          const catTotal = Math.max(0, monthTotals[cat]);
+          return (
+            <div key={cat} className="rounded-xl p-4" style={{background: CAT_BG[cat], border:`1px solid ${CAT_COLORS[cat]}44`}}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">{cat === "אוכל" ? "🍕" : "🎮"}</span>
+                <span className="font-bold" style={{color: CAT_COLORS[cat]}}>{cat}</span>
+                <span className="text-xs text-slate-400 mr-auto">{fmt(catTotal)} ב{MONTH_LABELS[selectedMonth]}</span>
+              </div>
+              {entries.length === 0 ? (
+                <p className="text-xs text-slate-500">אין עסקאות בחודש זה</p>
+              ) : (
+                <div className="space-y-2">
+                  {entries.map(([biz, val]) => {
+                    const pct = catTotal > 0 ? (val / catTotal * 100).toFixed(0) : 0;
+                    return (
+                      <div key={biz}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-slate-200">{biz}</span>
+                          <span className="text-slate-300">{fmt(val)} <span className="text-slate-500">({pct}%)</span></span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-slate-700">
+                          <div className="h-1.5 rounded-full" style={{width:`${pct}%`, background: CAT_COLORS[cat]}} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── PIVOT TABLE ─────────────────────────────────────────────────────────────
+function PivotTable({ byBizMonth, bizTotals, monthTotals, activeCategory }) {
+  const [sortMonth, setSortMonth] = useState("total");
+  const [sortDir,   setSortDir]   = useState("desc");
+
+  const sorted = useMemo(() => Object.keys(bizTotals).sort((a, b) => {
+    const va = sortMonth === "total" ? bizTotals[a] : (byBizMonth[a]?.[sortMonth] || 0);
+    const vb = sortMonth === "total" ? bizTotals[b] : (byBizMonth[b]?.[sortMonth] || 0);
+    return sortDir === "desc" ? vb - va : va - vb;
+  }), [byBizMonth, bizTotals, sortMonth, sortDir]);
+
+  const toggleSort = col => {
+    if (sortMonth === col) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortMonth(col); setSortDir("desc"); }
+  };
+  const arrow = col => sortMonth === col ? (sortDir === "desc" ? " ↓" : " ↑") : "";
+
+  const cellColor = val => {
+    if (!val || val === 0) return "";
+    if (val < 0) return "text-emerald-400";
+    if (val > 400) return "text-red-400 font-bold";
+    if (val > 200) return "text-orange-400";
+    if (val > 100) return "text-yellow-400";
+    return "text-slate-200";
+  };
+
+  const catColor = biz => {
+    if (activeCategory !== "הכל") return "";
+    const c = getCategory(biz);
+    return c === "אוכל" ? "text-amber-400" : "text-indigo-400";
+  };
+
+  return (
+    <div className="overflow-x-auto rounded-xl" style={{maxHeight:"65vh", overflowY:"auto"}}>
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="text-slate-400 text-xs uppercase tracking-wide" style={{background:"#1e293b"}}>
+            <th className="text-right py-3 px-4 min-w-40 sticky right-0 z-20" style={{background:"#1e293b"}}>
+              עסק
+            </th>
+            {activeCategory === "הכל" && (
+              <th className="px-3 py-3 text-center whitespace-nowrap text-slate-500">קטגוריה</th>
+            )}
+            {MONTHS.map(m => (
+              <th key={m} className="px-3 py-3 text-center cursor-pointer hover:text-cyan-400 whitespace-nowrap"
+                  onClick={() => toggleSort(m)}>
+                {MONTH_LABELS[m]}{arrow(m)}
+              </th>
+            ))}
+            <th className="px-3 py-3 text-center cursor-pointer hover:text-cyan-400 font-bold text-slate-300"
+                onClick={() => toggleSort("total")}>
+              סה״כ{arrow("total")}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((biz, i) => (
+            <tr key={biz} className={`border-b border-slate-800 hover:bg-white/5 transition-colors ${i%2===0?"":"bg-white/[0.02]"}`}>
+              <td className={`py-2 px-4 text-right font-medium sticky right-0 ${catColor(biz) || "text-slate-200"}`}
+                  style={{background: i%2===0 ? "#0f172a" : "rgb(15 23 42 / 0.97)"}}>
+                {biz}
+              </td>
+              {activeCategory === "הכל" && (
+                <td className="py-2 px-3 text-center text-xs whitespace-nowrap">
+                  <span className="px-2 py-0.5 rounded-full font-medium"
+                        style={{background: CAT_BG[getCategory(biz)], color: CAT_COLORS[getCategory(biz)]}}>
+                    {getCategory(biz) === "אוכל" ? "🍕 אוכל" : "🎮 משחקים"}
+                  </span>
+                </td>
+              )}
+              {MONTHS.map(m => {
+                const val = byBizMonth[biz]?.[m];
+                return (
+                  <td key={m} className={`py-2 px-3 text-center ${cellColor(val)}`}>
+                    {val != null && val !== 0 ? fmtSigned(val) : "—"}
+                  </td>
+                );
+              })}
+              <td className={`py-2 px-3 text-center font-semibold ${cellColor(bizTotals[biz])}`}>
+                {fmtSigned(bizTotals[biz])}
+              </td>
+            </tr>
+          ))}
+          <tr className="border-t-2 border-slate-600 font-bold text-slate-200" style={{background:"#1e293b"}}>
+            <td className="py-3 px-4 text-right sticky right-0" style={{background:"#1e293b"}}>סה״כ חודשי</td>
+            {activeCategory === "הכל" && <td style={{background:"#1e293b"}} />}
+            {MONTHS.map(m => (
+              <td key={m} className="py-3 px-3 text-center text-cyan-400">{fmt(monthTotals[m])}</td>
+            ))}
+            <td className="py-3 px-3 text-center text-cyan-400">
+              {fmt(Object.values(monthTotals).reduce((a,b)=>a+b,0))}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── SUMMARY CARDS ───────────────────────────────────────────────────────────
+function SummaryCards({ monthTotals, byBizMonth, selectedCatMonth, onSelectCatMonth }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      {MONTHS.map((m, i) => {
+        const total    = monthTotals[m] || 0;
+        const isActive = m === selectedCatMonth;
+        const top = Object.entries(byBizMonth)
+          .map(([b, mv]) => ({ b, v: mv[m] || 0 }))
+          .filter(x => x.v > 0)
+          .sort((a, b) => b.v - a.v)[0];
+        return (
+          <div
+            key={m}
+            onClick={() => onSelectCatMonth(m)}
+            className="glass rounded-xl p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 hover:scale-105"
+            style={{
+              borderColor: isActive ? PALETTE[i] : PALETTE[i] + "44",
+              boxShadow:   isActive ? `0 0 14px ${PALETTE[i]}66` : "none",
+              background:  isActive ? `${PALETTE[i]}18` : undefined,
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">{MONTH_LABELS[m]}</span>
+              {isActive && <span className="text-xs font-bold" style={{color: PALETTE[i]}}>●</span>}
+            </div>
+            <div className="text-xl font-bold" style={{color: PALETTE[i]}}>₪{total.toFixed(0)}</div>
+            {top && <div className="text-xs text-slate-500 truncate" title={top.b}>🏆 {top.b} (₪{top.v.toFixed(0)})</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── CATEGORY TOGGLE ─────────────────────────────────────────────────────────
+function CategoryToggle({ active, onChange }) {
+  const styles = {
+    "הכל":    { active: "active-all",   icon: "📊" },
+    "אוכל":   { active: "active-food",  icon: "🍕" },
+    "משחקים": { active: "active-games", icon: "🎮" },
+  };
+  return (
+    <div className="flex gap-2 items-center">
+      <span className="text-xs text-slate-500 ml-1">סינון:</span>
+      {CATEGORIES.map(cat => (
+        <button
+          key={cat}
+          onClick={() => onChange(cat)}
+          className={`cat-btn px-3 py-1.5 rounded-full text-sm font-medium border border-slate-700 text-slate-300 hover:border-slate-500 ${active === cat ? styles[cat].active : ""}`}
+        >
+          {styles[cat].icon} {cat}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [activeCategory, setActiveCategory] = useState("הכל");
+  const [selectedMonth,  setSelectedMonth]  = useState("2025-10");
+  // catMonth drives the category section; clicking a summary card updates it
+  const [catMonth, setCatMonth] = useState("2025-10");
+
+  const { byBizMonth, monthTotals, bizTotals } = useMemo(() => buildData(activeCategory), [activeCategory]);
+  const catData  = useMemo(() => buildCategoryData(), []);
+  const fullData = useMemo(() => buildData("הכל"), []);
+  const grandTotal = Object.values(fullData.monthTotals).reduce((a,b) => a+b, 0);
+
+  return (
+    <div className="min-h-screen text-white p-4 lg:p-6 space-y-6" style={{background:"#0f172a"}}>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">דשבורד הוצאות כרטיס אשראי</h1>
+          <p className="text-slate-400 text-sm mt-1">כרטיס 5298 • ספטמבר 2025 – מרץ 2026</p>
+        </div>
+        <div className="glass rounded-xl px-5 py-3">
+          <div className="text-xs text-slate-400">סה״כ תקופה</div>
+          <div className="text-2xl font-bold text-cyan-400">₪{grandTotal.toFixed(2)}</div>
+        </div>
+      </div>
+
+      {/* Monthly summary cards — clickable to navigate category section */}
+      <SummaryCards
+        monthTotals={fullData.monthTotals}
+        byBizMonth={fullData.byBizMonth}
+        selectedCatMonth={catMonth}
+        onSelectCatMonth={setCatMonth}
+      />
+
+      {/* Category split section — driven by catMonth */}
+      <CategorySection catData={catData} selectedMonth={catMonth} />
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 glass rounded-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-slate-300 font-semibold">הוצאות לפי חודש</h2>
+            {activeCategory !== "הכל" && (
+              <span className="text-xs px-2 py-1 rounded-full font-medium"
+                    style={{background: CAT_BG[activeCategory], color: CAT_COLORS[activeCategory]}}>
+                {activeCategory === "אוכל" ? "🍕" : "🎮"} {activeCategory} בלבד
+              </span>
+            )}
+          </div>
+          <MonthlyBarChart
+            monthTotals={monthTotals}
+            color={activeCategory === "אוכל" ? "#f59e0b" : activeCategory === "משחקים" ? "#6366f1" : "#22d3ee"}
+          />
+        </div>
+        <div className="glass rounded-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-slate-300 font-semibold">עסקים מובילים</h2>
+            <select
+              className="text-sm bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1"
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+            >
+              {MONTHS.map(m => <option key={m} value={m}>{MONTH_LABELS[m]}</option>)}
+            </select>
+          </div>
+          <TopPieChart bizMonth={byBizMonth} selectedMonth={selectedMonth} />
+        </div>
+      </div>
+
+      {/* Pivot table with category filter */}
+      <div className="glass rounded-xl p-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+          <h2 className="text-slate-300 font-semibold">הוצאות לפי עסק × חודש</h2>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <CategoryToggle active={activeCategory} onChange={setActiveCategory} />
+            <span className="text-xs text-slate-500">לחץ על עמודה למיון</span>
+          </div>
+        </div>
+        <PivotTable
+          byBizMonth={byBizMonth}
+          bizTotals={bizTotals}
+          monthTotals={monthTotals}
+          activeCategory={activeCategory}
+        />
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-slate-500 pb-2">
+        <span><span style={{color:"#f59e0b"}}>🍕 אמבר</span> = עסק אוכל</span>
+        <span><span style={{color:"#6366f1"}}>🎮 סגול</span> = עסק משחקים</span>
+        <span><span className="text-emerald-400">ירוק</span> = זיכוי / החזר</span>
+        <span><span className="text-red-400">אדום</span> = מעל ₪400</span>
+        <span><span className="text-orange-400">כתום</span> = ₪200–₪400</span>
+        <span><span className="text-yellow-400">צהוב</span> = ₪100–₪200</span>
+        <span>— = אין עסקאות</span>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
